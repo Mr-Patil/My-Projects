@@ -1,0 +1,194 @@
+*
+ D1 5 SCL
+ D2 4 SDA
+ D3 0 ECHO
+ D4 2 TRIDER 
+ D5 14 PUMP
+ D6 12 ONE_WIRE_BUS
+ D7 13 WFLOW
+ D8 15 AUD
+ TX 
+ TR
+ 
+*/
+// Include the libraries we need
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x3F, 20, 4); // set the LCD address to 0x27 for a 16 chars and 2 line display
+#define BLYNK_PRINT Serial
+#include <SPI.h>
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <SoftwareSerial.h>
+#include <stdio.h>
+#include <string.h>
+int level;
+char str[15];
+char str1[20];
+
+// Data wire is plugged into port 2 on the Arduino
+char ssid[] = "Tatasky-2.4g";
+char pass[] = "tatasky1234";
+// You should get Auth Token in the Blynk App.
+// Go to the Project Settings (nut icon).
+char auth[] = "KkSR0Vc-_JtrMFQ_2PkKfqyD3ZSAekJu";
+#define PMP 14
+#define WFLOW 13    
+#define AUD 15
+//#define PMP 13
+#define TRIGGERPIN 2
+#define ECHOPIN 0
+long duration;
+int distance;
+int pinValue,pinValue1=0;
+int PMPS=0,WFLOWS=0,TEMP1=0,TEMP2=0,TEMP3=0,TEMP4=0,TEMP5=0,TEMP6=0,TEMP7=0,TEMP8=0,MOD=0;
+#define ONE_WIRE_BUS 12
+WidgetBridge bridge1(V0);
+BLYNK_CONNECTED() {
+  bridge1.setAuthToken("KkSR0Vc-_JtrMFQ_2PkKfqyD3ZSAekJu"); // Place the AuthToken of the second hardware
+}  //****
+
+// Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
+OneWire oneWire(ONE_WIRE_BUS);
+
+// Pass our oneWire reference to Dallas Temperature. 
+DallasTemperature sensors(&oneWire);
+
+/*
+ * The setup function. We only start the sensors here
+ */
+ BLYNK_WRITE(V1)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+    if(pinValue==HIGH){SendMessage("AUTO MODE");MOD=1;}
+    if(pinValue==LOW){SendMessage("MANUAL MODE");MOD=0;}
+
+  // process received value
+}
+BLYNK_WRITE(V2) 
+{
+  int pinValue1 = param.asInt(); // assigning incoming value from pin V1 to a variable
+if(MOD==0&&pinValue1==HIGH){digitalWrite(PMP,LOW);SendMessage("Pump is on");digitalRead(PMPS);delay(9000);lcd.setCursor(9,1);   lcd.print("P:ON   "); MOD=0;delay(100);}
+if(MOD==0&&pinValue1==LOW){digitalWrite(PMP,HIGH);SendMessage("Pump is off");digitalRead(PMPS);(PMPS);lcd.setCursor(9,1);   lcd.print("P:OFF ");  MOD=0;}
+ 
+   // process received value
+}
+
+void setup(void)
+{
+  // start serial port
+  Serial.begin(9600);
+  Serial.println("Dallas Temperature IC Control Library Demo");
+ lcd.init();
+  // Print a message to the LCD.
+  lcd.backlight();
+  // Start up the library
+  lcd.clear();
+  lcd.print("Circuit Digest");
+  delay(1000);
+  lcd.setCursor(0, 1);
+  sensors.begin();
+   Blynk.begin(auth, ssid, pass);;
+  // Clear the terminal content
+//  terminal.clear();
+    pinMode(TRIGGERPIN, OUTPUT);
+    pinMode(ECHOPIN, INPUT);
+    pinMode(ONE_WIRE_BUS, INPUT_PULLUP);
+     pinMode(PMP, OUTPUT);
+     pinMode(WFLOW, INPUT_PULLUP);
+pinMode(AUD, OUTPUT);
+lcd.clear();
+//PMPS=1;
+//WFLOWS=1;
+}
+void loop(void)
+{ 
+   Blynk.run();
+  // MOD=pinValue;
+  // call sensors.requestTemperatures() to issue a global temperature 
+  // request to all devices on the bus
+  //("Requesting temperatures...");
+  sensors.requestTemperatures(); // Send the command to get temperatures
+  //Serial.println("DONE");
+  // After we got the temperatures, we can print them here.
+  // We use the function ByIndex, and as an example get the temperature from the first sensor only.
+  float tempC = sensors.getTempCByIndex(0);
+
+  // Check if reading was successful
+  if(tempC != DEVICE_DISCONNECTED_C) 
+  {
+   // Serial.print("Temperature for the device 1 (index 0) is: ");
+   // Serial.println(tempC);
+   sprintf(str1, "%f", tempC);TEMP3=0;
+   bridge1.virtualWrite(V4,tempC);
+  } 
+  else
+  {if(TEMP3==0){
+    SendMessage("Error: Could not read temperature data");TEMP3=1;}
+  }
+   digitalWrite(TRIGGERPIN, LOW);  
+   delayMicroseconds(3); 
+   digitalWrite(TRIGGERPIN, HIGH);
+     delayMicroseconds(12); 
+   digitalWrite(TRIGGERPIN, LOW);
+    duration = pulseIn(ECHOPIN, HIGH);
+    distance = (duration/2) / 29.1;
+     level=(25-distance)*5;
+      delay(1000);
+    sprintf(str1, "%f", level);
+    bridge1.virtualWrite(V3,level);
+    
+    PMPS=digitalRead(PMP);
+    WFLOWS=digitalRead(WFLOW);
+    if(PMPS==1&&WFLOWS==1&&TEMP8==0){SendMessage("Reseted");lcd.setCursor(9,1);lcd.print("P:");TEMP8=1;PMPS=digitalRead(PMP);delay(100);}
+    if(PMPS==0&&WFLOWS==1&&TEMP8==1){digitalWrite(PMP,HIGH);SendMessage("Pump is tripped");lcd.setCursor(9,1);lcd.print("P:TRIP");TEMP8=0;PMPS=digitalRead(PMP);delay(100);}
+  
+   //lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("L:");
+    lcd.setCursor(2,0);
+    lcd.print("     ");
+    lcd.setCursor(2,0);
+    lcd.print(level);
+    lcd.setCursor(6,0);
+    lcd.print("%");
+    delay(200);
+    lcd.setCursor(8,0);
+    lcd.print("T:");
+    lcd.setCursor(10,0);
+    lcd.print("     ");
+    lcd.setCursor(10,0);
+    lcd.print(tempC);
+    lcd.setCursor(15,0);
+    lcd.print("C");
+    delay(200);
+    //
+   if(MOD==1&&TEMP2==0&&PMPS==1&&level<25&&TEMP8==1){digitalWrite(PMP,LOW);SendMessage("Pump is on");TEMP2=1;lcd.setCursor(9,1); lcd.print("P:ON   ");delay(9000); MOD=1;delay(100);}
+   //if(MOD==1&&TEMP2==1&&PMPS==0&&level>99){digitalWrite(PMP,HIGH);SendMessage("Pump is off");TEMP2=0;lcd.setCursor(9,1); lcd.print("P:OFF  ");PMPS=digitalRead(PMP);MOD=1;delay(100);}
+    if(TEMP5==1&&WFLOWS==0){SendMessage("Water is flowing");TEMP5=0;lcd.setCursor(0,1);  lcd.print("W:FLOWING");}
+   if(TEMP5==0&&WFLOWS==1){SendMessage("Water is not flowing");TEMP5=1;lcd.setCursor(0,1); lcd.print("W:NO FLOW");}
+  // if(TEMP1==1&&PMPS==0){SendMessage("Pump is on");TEMP1=1;lcd.setCursor(10,1); lcd.print("P:ON ");delay(2000); PMPS=digitalRead(PMP);delay(100);}
+  // if(TEMP1==0&&PMPS==1){SendMessage("Pump is off");TEMP1=1;lcd.setCursor(10,1); lcd.print("P:OFF ");PMPS=digitalRead(PMP);delay(100);}
+   if(level<25&&TEMP4==0){  digitalWrite(AUD,HIGH);delay(1000);digitalWrite(AUD,LOW);delay(1000);digitalWrite(AUD,HIGH);delay(1000);digitalWrite(AUD,LOW);SendMessage("Watter level is<25%");TEMP4=1;}
+ // if(level>25&&level<98){TEMP4=0;}
+  //if(level>98){TEMP4=1;}
+  if(level>98&&TEMP4==1){ digitalWrite(PMP,HIGH);SendMessage("Pump is off");TEMP2=0; digitalWrite(AUD,HIGH);delay(1000);digitalWrite(AUD,LOW);delay(1000);digitalWrite(AUD,HIGH);delay(1000);digitalWrite(AUD,LOW);SendMessage("Watter level is>99%");TEMP4=0;}
+}
+void SendMessage(char str1[])
+{
+  Serial.println("AT+CMGF=1");    //Sets the GSM Module in Text Mode
+  delay(1000);  // Delay of 1000 milli seconds or 1 second
+  Serial.println("AT+CMGS=\"+917977946059\"\r"); // Mobile number
+  delay(1000);
+  Serial.println(str1);// The SMS text you want to send
+  delay(100);
+  Serial.write(26);// ASCII code of CTRL+Z
+  delay(1000);
+}
+
+
+/*
+ * Main function, get and show the temperature
+ */
